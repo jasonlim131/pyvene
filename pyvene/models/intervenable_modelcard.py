@@ -13,6 +13,7 @@ from .blip.modelings_intervenable_blip_itm import *
 from .backpack_gpt2.modelings_intervenable_backpack_gpt2 import *
 from .llava.modelings_intervenable_llava import *
 from .olmo.modelings_intervenable_olmo import *
+from .bert.modelings_intervenable_bert import *
 
 #########################################################################
 """
