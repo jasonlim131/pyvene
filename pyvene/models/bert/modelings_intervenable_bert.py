@@ -1,5 +1,3 @@
-# intervenable_roberta.py
-
 """
 Each modeling file in this library is a mapping between
 abstract naming of intervention anchor points and actual
@@ -32,7 +30,9 @@ def split_head_and_permute(tensor, n_heads):
     tensor = tensor.permute(0, 2, 1, 3)
     return tensor
 
-roberta_type_to_module_mapping = {
+
+# Base mapping for BERT-style models
+bert_type_to_module_mapping = {
     "block_input": ("layer._.%s", CONST_INPUT_HOOK),
     "block_output": ("layer._.%s.output", CONST_OUTPUT_HOOK),
     "mlp_activation": ("layer._.%s.intermediate.act_fn", CONST_OUTPUT_HOOK),
@@ -66,54 +66,67 @@ roberta_type_to_module_mapping = {
     ),
 }
 
-# The dimension mapping remains the same as it's correct
-roberta_type_to_dimension_mapping = {
-    "num_attention_heads": ("num_attention_heads",),
-    "num_key_value_heads": ("num_key_value_heads",),
+bert_type_to_dimension_mapping = {
+    "n_head": ("num_attention_heads",),
+    "n_kv_head": ("num_key_value_heads",),
     "block_input": ("hidden_size",),
     "block_output": ("hidden_size",),
     "mlp_activation": ("intermediate_size",),
     "mlp_output": ("hidden_size",),
     "mlp_input": ("hidden_size",),
     "attention_value_output": ("hidden_size",),
-    "head_attention_value_output": ("hidden_size / num_attention_heads",),
+    "head_attention_value_output": ("head_dim",),  # Assuming head_dim = hidden_size / num_attention_heads
     "attention_output": ("hidden_size",),
     "attention_input": ("hidden_size",),
     "query_output": ("hidden_size",),
     "key_output": ("hidden_size",),
     "value_output": ("hidden_size",),
-    "head_query_output": ("hidden_size / num_attention_heads",),
-    "head_key_output": ("hidden_size / num_attention_heads",),
-    "head_value_output": ("hidden_size / num_attention_heads",),
+    "head_query_output": ("head_dim",),
+    "head_key_output": ("head_dim",),
+    "head_value_output": ("head_dim",),
 }
 
-"""RoBERTa model with LM head"""
-roberta_lm_type_to_module_mapping = {}
-for k, v in roberta_type_to_module_mapping.items():
-    roberta_lm_type_to_module_mapping[k] = (f"model.{v[0]}",) + v[1:]
+"""BERT-style model with LM head"""
+bert_lm_type_to_module_mapping = {}
+for k, v in bert_type_to_module_mapping.items():
+    bert_lm_type_to_module_mapping[k] = (f"model.{v[0]}",) + v[1:]
 
-roberta_lm_type_to_dimension_mapping = roberta_type_to_dimension_mapping
+bert_lm_type_to_dimension_mapping = bert_type_to_dimension_mapping
 
-"""RoBERTa model with classifier head"""
-roberta_classifier_type_to_module_mapping = {}
-for k, v in roberta_type_to_module_mapping.items():
+"""BERT-style model with classifier head"""
+bert_classifier_type_to_module_mapping = {}
+for k, v in bert_type_to_module_mapping.items():
     # Adjust the module path to include the classifier head
-    # For RobertaForSequenceClassification, the classifier is separate from the encoder
-    roberta_classifier_type_to_module_mapping[k] = (f"model.{v[0]}",) + v[1:]
+    # For BertForSequenceClassification, the classifier is separate from the encoder
+    bert_classifier_type_to_module_mapping[k] = (f"model.{v[0]}",) + v[1:]
 
-roberta_classifier_type_to_dimension_mapping = roberta_type_to_dimension_mapping
+bert_classifier_type_to_dimension_mapping = bert_type_to_dimension_mapping
 
-def create_roberta(
-    name="roberta-base",
+def create_bert(
+    name,
+    model_type="bert",
     cache_dir=None,
     dtype=torch.bfloat16,
     config=None,
-    num_labels=2  # Default number of labels for classification
+    num_labels=2
 ):
-    from transformers import RobertaForSequenceClassification, RobertaTokenizer, RobertaConfig
+    if model_type == "bert":
+        from transformers import BertForSequenceClassification, BertTokenizer, BertConfig
+        ModelClass = BertForSequenceClassification
+        TokenizerClass = BertTokenizer
+        ConfigClass = BertConfig
+    
+    # robert uses a BPE tokenizer
+    elif model_type == "roberta":
+        from transformers import RobertaForSequenceClassification, RobertaTokenizer, RobertaConfig
+        ModelClass = RobertaForSequenceClassification
+        TokenizerClass = RobertaTokenizer
+        ConfigClass = RobertaConfig
+    else:
+        raise ValueError(f"Unsupported model type: {model_type}")
 
     if config is None:
-        config = RobertaConfig.from_pretrained(
+        config = ConfigClass.from_pretrained(
             name,
             cache_dir=cache_dir,
             num_labels=num_labels
@@ -121,13 +134,12 @@ def create_roberta(
     else:
         config.num_labels = num_labels
 
-    tokenizer = RobertaTokenizer.from_pretrained(name, cache_dir=cache_dir)
-
-    roberta = RobertaForSequenceClassification.from_pretrained(
+    tokenizer = TokenizerClass.from_pretrained(name, cache_dir=cache_dir)
+    model = ModelClass.from_pretrained(
         name,
         config=config,
         cache_dir=cache_dir,
-        torch_dtype=dtype,  # Save memory
+        torch_dtype=dtype,
     )
-    print("loaded model")
-    return config, tokenizer, roberta
+    
+    return config, tokenizer, model
