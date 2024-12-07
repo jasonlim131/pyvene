@@ -50,6 +50,7 @@ from .models.gru.modelings_intervenable_gru import create_gru_classifier
 from .models.llava.modelings_intervenable_llava import create_llava
 from .models.gru.modelings_gru import GRUConfig
 from .models.llama.modelings_intervenable_llama import create_llama
+from .models.bert.modelings_intervenable_bert import create_bert
 from .models.mlp.modelings_intervenable_mlp import create_mlp_classifier
 from .models.backpack_gpt2.modelings_intervenable_backpack_gpt2 import create_backpack_gpt2
 
